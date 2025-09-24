@@ -32,7 +32,7 @@ const authMiddleware = async (req, res, next) => {
       // Buscar baseado no tipo de usuário
       if (decoded.tipo === 'revenda') {
         [rows] = await db.execute(
-          'SELECT codigo, nome, email, usuario, streamings, espectadores, bitrate, espaco, status, "revenda" as tipo FROM revendas WHERE codigo = ? AND status = 1',
+          'SELECT codigo, nome, email, usuario, streamings, espectadores, bitrate, espaco, status, "revenda" as tipo, codigo as codigo_cliente FROM revendas WHERE codigo = ? AND status = 1',
           [decoded.userId]
         );
       } else if (decoded.tipo === 'streaming') {
@@ -80,7 +80,9 @@ const authMiddleware = async (req, res, next) => {
         bitrate: user.bitrate,
         espaco: user.espaco,
         codigo_cliente: user.codigo_cliente || null,
-        codigo_servidor: user.codigo_servidor || null
+        codigo_servidor: user.codigo_servidor || null,
+        // Para revendas, usar o próprio código como cliente
+        effective_user_id: user.tipo === 'revenda' ? user.codigo : (user.codigo_cliente || user.codigo)
       };
 
       // Reduzir logs de autenticação bem-sucedida

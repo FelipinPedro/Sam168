@@ -7,7 +7,8 @@ const router = express.Router();
 // GET /api/agendamentos - Lista agendamentos do usuário
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
     const { mesAno } = req.query; // formato: YYYY-MM
 
     let query = `
@@ -27,7 +28,7 @@ router.get('/', authMiddleware, async (req, res) => {
       LEFT JOIN playlists p ON pa.codigo_playlist = p.id
       LEFT JOIN playlists pf ON pa.codigo_playlist_finalizacao = pf.id
       WHERE (pa.codigo_stm = ? OR pa.codigo_stm IN (
-        SELECT codigo_cliente FROM streamings WHERE codigo = ?
+        SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
       ))
     `;
 
@@ -71,7 +72,8 @@ router.post('/', authMiddleware, async (req, res) => {
       dias_semana
     } = req.body;
 
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
 
     if (!data || !id_playlist || !inicio) {
       return res.status(400).json({ error: 'Data, playlist e horário de início são obrigatórios' });
@@ -115,15 +117,19 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // Atualizar arquivo SMIL do usuário após criar agendamento
     try {
-      const userLogin = req.user.email ? req.user.email.split('@')[0] : `user_${req.user.id}`;
+      const effectiveUserId = req.user.effective_user_id || req.user.id;
+      const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${effectiveUserId}`);
       const [serverRows] = await db.execute(
-        'SELECT servidor_id FROM folders WHERE user_id = ? LIMIT 1',
-        [req.user.id]
+        `SELECT servidor_id FROM folders 
+         WHERE (user_id = ? OR user_id IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         )) LIMIT 1`,
+        [effectiveUserId, effectiveUserId]
       );
       const serverId = serverRows.length > 0 ? serverRows[0].servidor_id : 1;
       
       const PlaylistSMILService = require('../services/PlaylistSMILService');
-      await PlaylistSMILService.updateUserSMIL(req.user.id, userLogin, serverId);
+      await PlaylistSMILService.updateUserSMIL(effectiveUserId, userLogin, serverId);
       console.log(`✅ Arquivo SMIL atualizado após criar agendamento para usuário ${userLogin} em /home/streaming/${userLogin}/playlists_agendamentos.smil`);
     } catch (smilError) {
       console.warn('Erro ao atualizar arquivo SMIL:', smilError.message);
@@ -143,12 +149,16 @@ router.post('/', authMiddleware, async (req, res) => {
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const agendamentoId = req.params.id;
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
 
     // Verificar se agendamento pertence ao usuário
     const [agendamentoRows] = await db.execute(
-      'SELECT codigo FROM playlists_agendamentos WHERE codigo = ? AND codigo_stm = ?',
-      [agendamentoId, userId]
+      `SELECT codigo FROM playlists_agendamentos 
+       WHERE codigo = ? AND (codigo_stm = ? OR codigo_stm IN (
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
+       ))`,
+      [agendamentoId, userId, userId]
     );
 
     if (agendamentoRows.length === 0) {
@@ -163,15 +173,19 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Atualizar arquivo SMIL do usuário após remover agendamento
     try {
+      const effectiveUserId = req.user.effective_user_id || req.user.id;
       const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${req.user.id}`);
       const [serverRows] = await db.execute(
-        'SELECT servidor_id FROM folders WHERE user_id = ? LIMIT 1',
-        [req.user.id]
+        `SELECT servidor_id FROM folders 
+         WHERE (user_id = ? OR user_id IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         )) LIMIT 1`,
+        [effectiveUserId, effectiveUserId]
       );
       const serverId = serverRows.length > 0 ? serverRows[0].servidor_id : 1;
       
       const PlaylistSMILService = require('../services/PlaylistSMILService');
-      await PlaylistSMILService.updateUserSMIL(req.user.id, userLogin, serverId);
+      await PlaylistSMILService.updateUserSMIL(effectiveUserId, userLogin, serverId);
     } catch (smilError) {
       console.warn('Erro ao atualizar arquivo SMIL:', smilError.message);
     }

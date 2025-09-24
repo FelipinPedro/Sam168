@@ -7,7 +7,8 @@ const router = express.Router();
 // GET /api/playlists - Lista playlists do usuário
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
 
     const [rows] = await db.execute(
       `SELECT 
@@ -18,7 +19,7 @@ router.get('/', authMiddleware, async (req, res) => {
         duracao_total
        FROM playlists 
        WHERE (codigo_stm = ? OR codigo_stm IN (
-         SELECT codigo_cliente FROM streamings WHERE codigo = ?
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
        ))
        ORDER BY data_criacao DESC`,
       [userId, userId]
@@ -35,7 +36,8 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { nome } = req.body;
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
 
     if (!nome) {
       return res.status(400).json({ error: 'Nome da playlist é obrigatório' });
@@ -49,15 +51,18 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // Atualizar arquivo SMIL do usuário após criar playlist
     try {
-      const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${req.user.id}`);
+      const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${userId}`);
       const [serverRows] = await db.execute(
-        'SELECT servidor_id FROM folders WHERE user_id = ? LIMIT 1',
-        [req.user.id]
+        `SELECT servidor_id FROM folders 
+         WHERE (user_id = ? OR user_id IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         )) LIMIT 1`,
+        [userId, userId]
       );
       const serverId = serverRows.length > 0 ? serverRows[0].servidor_id : 1;
       
       const PlaylistSMILService = require('../services/PlaylistSMILService');
-      await PlaylistSMILService.updateUserSMIL(req.user.id, userLogin, serverId);
+      await PlaylistSMILService.updateUserSMIL(userId, userLogin, serverId);
       console.log(`✅ Arquivo SMIL atualizado após criar playlist para usuário ${userLogin}`);
     } catch (smilError) {
       console.warn('Erro ao atualizar arquivo SMIL:', smilError.message);
@@ -78,12 +83,16 @@ router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const playlistId = req.params.id;
     const { nome, videos } = req.body;
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
 
     // Verificar se playlist pertence ao usuário
     const [playlistRows] = await db.execute(
-      'SELECT id FROM playlists WHERE id = ? AND codigo_stm = ?',
-      [playlistId, userId]
+      `SELECT id FROM playlists 
+       WHERE id = ? AND (codigo_stm = ? OR codigo_stm IN (
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
+       ))`,
+      [playlistId, userId, userId]
     );
 
     if (playlistRows.length === 0) {
@@ -132,15 +141,18 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     // Atualizar arquivo SMIL do usuário após modificar playlist
     try {
-      const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${req.user.id}`);
+      const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${userId}`);
       const [serverRows] = await db.execute(
-        'SELECT servidor_id FROM folders WHERE user_id = ? LIMIT 1',
-        [req.user.id]
+        `SELECT servidor_id FROM folders 
+         WHERE (user_id = ? OR user_id IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         )) LIMIT 1`,
+        [userId, userId]
       );
       const serverId = serverRows.length > 0 ? serverRows[0].servidor_id : 1;
       
       const PlaylistSMILService = require('../services/PlaylistSMILService');
-      await PlaylistSMILService.updateUserSMIL(req.user.id, userLogin, serverId);
+      await PlaylistSMILService.updateUserSMIL(userId, userLogin, serverId);
       console.log(`✅ Arquivo SMIL atualizado após modificar playlist ${playlistId}`);
     } catch (smilError) {
       console.warn('Erro ao atualizar arquivo SMIL:', smilError.message);
@@ -157,12 +169,16 @@ router.put('/:id', authMiddleware, async (req, res) => {
 router.get('/:id/videos', authMiddleware, async (req, res) => {
   try {
     const playlistId = req.params.id;
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
 
     // Verificar se playlist pertence ao usuário
     const [playlistRows] = await db.execute(
-      'SELECT id FROM playlists WHERE id = ? AND codigo_stm = ?',
-      [playlistId, userId]
+      `SELECT id FROM playlists 
+       WHERE id = ? AND (codigo_stm = ? OR codigo_stm IN (
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
+       ))`,
+      [playlistId, userId, userId]
     );
 
     if (playlistRows.length === 0) {
@@ -185,9 +201,11 @@ router.get('/:id/videos', authMiddleware, async (req, res) => {
         v.compativel,
         v.ordem_playlist
        FROM videos v
-       WHERE v.playlist_id = ? AND v.codigo_cliente = ?
+       WHERE v.playlist_id = ? AND (v.codigo_cliente = ? OR v.codigo_cliente IN (
+         SELECT codigo FROM streamings WHERE codigo_cliente = ?
+       ))
        ORDER BY v.ordem_playlist ASC, v.id ASC`,
-      [playlistId, userId]
+      [playlistId, userId, userId]
     );
 
     // Formatar resposta para compatibilidade com frontend
@@ -206,12 +224,16 @@ router.get('/:id/videos', authMiddleware, async (req, res) => {
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const playlistId = req.params.id;
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
 
     // Verificar se playlist pertence ao usuário
     const [playlistRows] = await db.execute(
-      'SELECT id, nome FROM playlists WHERE id = ? AND codigo_stm = ?',
-      [playlistId, userId]
+      `SELECT id, nome FROM playlists 
+       WHERE id = ? AND (codigo_stm = ? OR codigo_stm IN (
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
+       ))`,
+      [playlistId, userId, userId]
     );
 
     if (playlistRows.length === 0) {
@@ -260,15 +282,18 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Atualizar arquivo SMIL do usuário após remover playlist
     try {
-      const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${req.user.id}`);
+      const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${userId}`);
       const [serverRows] = await db.execute(
-        'SELECT servidor_id FROM folders WHERE user_id = ? LIMIT 1',
-        [req.user.id]
+        `SELECT servidor_id FROM folders 
+         WHERE (user_id = ? OR user_id IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         )) LIMIT 1`,
+        [userId, userId]
       );
       const serverId = serverRows.length > 0 ? serverRows[0].servidor_id : 1;
       
       const PlaylistSMILService = require('../services/PlaylistSMILService');
-      await PlaylistSMILService.updateUserSMIL(req.user.id, userLogin, serverId);
+      await PlaylistSMILService.updateUserSMIL(userId, userLogin, serverId);
     } catch (smilError) {
       console.warn('Erro ao atualizar arquivo SMIL:', smilError.message);
     }

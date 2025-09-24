@@ -15,6 +15,8 @@ const userSchema = z.object({
   email: z.string().min(1, 'Email ou usuário é obrigatório'),
   codigo_servidor: z.number().nullable().optional(),
   codigo_cliente: z.number().nullable().optional(),
+  // Para revendas, effective_user_id será o próprio código
+  effective_user_id: z.number().optional(),
 });
 
 type User = z.infer<typeof userSchema>;
@@ -69,7 +71,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userDataWithType = {
           ...userData,
           tipo: userData.tipo || 'streaming', // Valor padrão se não estiver presente
-          codigo_cliente: userData.codigo_cliente || null
+          codigo_cliente: userData.codigo_cliente || null,
+          // Para revendas, usar o próprio ID como effective_user_id
+          effective_user_id: userData.tipo === 'revenda' ? userData.id : userData.codigo_cliente || userData.id
         };
         const validatedUser = userSchema.parse(userDataWithType);
         setUser(validatedUser);
@@ -125,7 +129,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userDataWithType = {
           ...data.user,
           tipo: data.user.tipo || 'streaming',
-          codigo_cliente: data.user.codigo_cliente || null
+          codigo_cliente: data.user.codigo_cliente || null,
+          // Para revendas, usar o próprio ID como effective_user_id
+          effective_user_id: data.user.tipo === 'revenda' ? data.user.id : data.user.codigo_cliente || data.user.id
         };
         const validatedUser = userSchema.parse(userDataWithType);
         setUser(validatedUser);

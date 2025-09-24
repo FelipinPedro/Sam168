@@ -371,8 +371,11 @@ class WowzaStreamingService {
     try {
       // Buscar userLogin
       const [userRows] = await db.execute(
-        'SELECT usuario, email FROM streamings WHERE codigo_cliente = ? LIMIT 1',
-        [userId]
+        `SELECT usuario, email, 'streaming' as tipo FROM streamings WHERE codigo_cliente = ? 
+         UNION 
+         SELECT usuario, email, 'revenda' as tipo FROM revendas WHERE codigo = ?
+         LIMIT 1`,
+        [userId, userId]
       );
 
       const userLogin = userRows.length > 0 && userRows[0].usuario ? 
@@ -465,8 +468,11 @@ class WowzaStreamingService {
 
       // Buscar userLogin
       const [userRows] = await db.execute(
-        'SELECT usuario, email FROM streamings WHERE codigo_cliente = ? LIMIT 1',
-        [userId]
+        `SELECT usuario, email, 'streaming' as tipo FROM streamings WHERE codigo_cliente = ? 
+         UNION 
+         SELECT usuario, email, 'revenda' as tipo FROM revendas WHERE codigo = ?
+         LIMIT 1`,
+        [userId, userId]
       );
 
       const userLogin = userRows.length > 0 && userRows[0].usuario ? 
@@ -612,8 +618,11 @@ class WowzaStreamingService {
     try {
       // Buscar userLogin
       const [userRows] = await db.execute(
-        'SELECT usuario, email FROM streamings WHERE codigo_cliente = ? LIMIT 1',
-        [userId]
+        `SELECT usuario, email, 'streaming' as tipo FROM streamings WHERE codigo_cliente = ? 
+         UNION 
+         SELECT usuario, email, 'revenda' as tipo FROM revendas WHERE codigo = ?
+         LIMIT 1`,
+        [userId, userId]
       );
 
       const userLogin = userRows.length > 0 && userRows[0].usuario ? 

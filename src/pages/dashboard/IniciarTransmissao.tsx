@@ -65,7 +65,9 @@ const IniciarTransmissao: React.FC = () => {
     inicio_imediato: true
   });
 
-  const userLogin = user?.usuario || (user?.email ? user.email.split('@')[0] : `user_${user?.id || 'usuario'}`);
+  // Para revendas, usar effective_user_id
+  const effectiveUserId = user?.effective_user_id || user?.id;
+  const userLogin = user?.usuario || (user?.email ? user.email.split('@')[0] : `user_${effectiveUserId || 'usuario'}`);
 
   useEffect(() => {
     loadInitialData();

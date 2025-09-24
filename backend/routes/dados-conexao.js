@@ -8,7 +8,8 @@ const router = express.Router();
 // GET /api/dados-conexao/obs-config - Configuração para OBS
 router.get('/obs-config', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
     const userLogin = req.user.email ? req.user.email.split('@')[0] : `user_${userId}`;
     
     // Buscar configurações do usuário
@@ -17,10 +18,25 @@ router.get('/obs-config', authMiddleware, async (req, res) => {
         bitrate, espectadores, espaco, espaco_usado, aplicacao,
         status_gravando, transcoder, transcoder_qualidades, codigo_servidor
        FROM streamings 
-       WHERE (codigo_cliente = ? OR codigo = ?) AND status = 1 LIMIT 1`,
+       WHERE (codigo_cliente = ? OR codigo_cliente = ?) AND status = 1 LIMIT 1`,
       [userId, userId]
     );
 
+    // Se não encontrou em streamings e é revenda, buscar dados da revenda
+    if (userConfigRows.length === 0 && req.user.tipo === 'revenda') {
+      const [revendaRows] = await db.execute(
+        `SELECT  
+          bitrate, espectadores, espaco, 0 as espaco_usado, 'live' as aplicacao,
+          'nao' as status_gravando, 'nao' as transcoder, '' as transcoder_qualidades, 1 as codigo_servidor
+         FROM revendas 
+         WHERE codigo = ? AND status = 1 LIMIT 1`,
+        [userId]
+      );
+      
+      if (revendaRows.length > 0) {
+        userConfigRows.push(revendaRows[0]);
+      }
+    }
     if (userConfigRows.length === 0) {
       return res.status(404).json({ 
         success: false, 

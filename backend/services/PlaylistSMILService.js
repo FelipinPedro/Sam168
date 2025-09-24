@@ -520,7 +520,7 @@ class PlaylistSMILService {
         try {
             console.log('🔄 Gerando arquivos SMIL para todos os usuários...');
 
-            // Buscar todos os usuários ativos
+            // Buscar todos os usuários ativos (streamings e revendas)
             const [userRows] = await db.execute(
                 `SELECT DISTINCT 
                     s.codigo_cliente as user_id,
@@ -528,7 +528,16 @@ class PlaylistSMILService {
                     f.servidor_id
                  FROM streamings s 
                 LEFT JOIN folders f ON s.codigo_cliente = f.user_id
-                 WHERE s.status = 1 AND s.usuario IS NOT NULL`
+                 WHERE s.status = 1 AND s.usuario IS NOT NULL
+                 
+                 UNION
+                 
+                 SELECT DISTINCT
+                     r.codigo as user_id,
+                     r.usuario,
+                     1 as servidor_id
+                 FROM revendas r
+                 WHERE r.status = 1 AND r.usuario IS NOT NULL`
             );
 
             const results = [];

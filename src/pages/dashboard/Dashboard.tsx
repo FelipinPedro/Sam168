@@ -70,7 +70,9 @@ const Dashboard: React.FC = () => {
   const [playlistName, setPlaylistName] = useState<string>('');
   const [playerError, setPlayerError] = useState<string | null>(null);
 
-  const userLogin = user?.usuario || (user?.email ? user.email.split('@')[0] : `user_${user?.id || 'usuario'}`);
+  // Para revendas, usar effective_user_id
+  const effectiveUserId = user?.effective_user_id || user?.id;
+  const userLogin = user?.usuario || (user?.email ? user.email.split('@')[0] : `user_${effectiveUserId || 'usuario'}`);
 
   useEffect(() => {
     loadDashboardData();
@@ -544,7 +546,7 @@ const Dashboard: React.FC = () => {
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-white">
                   <div className="text-center">
-                    <WifiOff className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                  Bem-vindo ao seu painel de {user?.tipo === 'revenda' ? 'revenda' : 'streaming'}
                     <h3 className="text-xl font-semibold mb-2">Nenhuma Transmissão Ativa</h3>
                     <p className="text-gray-400 mb-4">
                       {playerError ? 'Erro de conexão com o servidor' : 'Inicie uma transmissão para visualizar aqui'}
@@ -559,6 +561,12 @@ const Dashboard: React.FC = () => {
                       </button>
                     )}
                   </div>
+                  {user?.tipo === 'revenda' && (
+                    <div className="flex items-center space-x-2">
+                      <Activity className="h-4 w-4" />
+                      <span>Streamings: {user?.streamings || 0}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

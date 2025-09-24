@@ -175,7 +175,9 @@ const Playlists: React.FC = () => {
     })
   );
 
-  const userLogin = user?.usuario || (user?.email ? user.email.split('@')[0] : `user_${user?.id || 'usuario'}`);
+  // Para revendas, usar effective_user_id
+  const effectiveUserId = user?.effective_user_id || user?.id;
+  const userLogin = user?.usuario || (user?.email ? user.email.split('@')[0] : `user_${effectiveUserId || 'usuario'}`);
 
   useEffect(() => {
     loadPlaylists();
@@ -553,11 +555,15 @@ const Playlists: React.FC = () => {
         toast.success(`Transmissão da playlist "${selectedPlaylist.nome}" iniciada com sucesso!`);
         
         // Configurar URL do player
+        // Usar effective_user_id para revendas
+        const effectiveUserId = user?.effective_user_id || user?.id;
+        const effectiveUserLogin = user?.usuario || (user?.email ? user.email.split('@')[0] : `user_${effectiveUserId}`);
+        
         const baseUrl = window.location.protocol === 'https:' 
           ? `https://${window.location.hostname}:3001`
           : `http://${window.location.hostname}:3001`;
         
-        setPlayerUrl(`${baseUrl}/api/player-port/iframe?login=${userLogin}&playlist=${selectedPlaylist.id}&player=1&contador=true&compartilhamento=true`);
+        setPlayerUrl(`${baseUrl}/api/player-port/iframe?login=${effectiveUserLogin}&playlist=${selectedPlaylist.id}&player=1&contador=true&compartilhamento=true`);
         setShowPlayerModal(true);
         
         // Atualizar status

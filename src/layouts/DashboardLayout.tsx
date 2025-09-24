@@ -330,10 +330,10 @@ const DashboardLayout: React.FC = () => {
                       {user?.nome || 'Usuário'}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {user?.tipo === 'revenda' ? 'Revenda' : 'Streaming'}
+                      {user?.tipo === 'revenda' ? 'Revenda' : 'Streaming'} • @{user?.usuario || user?.email?.split('@')[0] || 'usuario'}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                  {user?.tipo === 'revenda' ? 'Conta de Revenda' : 'Conta de Streaming'}
                 </button>
               </div>
             </div>

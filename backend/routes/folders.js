@@ -9,7 +9,8 @@ const router = express.Router();
 // GET /api/folders - Lista pastas do usuário
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
 
     console.log(`📁 Carregando pastas para usuário: ${userId}`);
     // Buscar pastas do usuário na nova tabela folders
@@ -26,7 +27,7 @@ router.get('/', authMiddleware, async (req, res) => {
         (SELECT COUNT(*) FROM videos WHERE pasta = folders.id AND codigo_cliente = ?) as video_count_db
        FROM folders 
        WHERE (user_id = ? OR user_id IN (
-         SELECT codigo_cliente FROM streamings WHERE codigo = ?
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
        )) AND status = 1
        ORDER BY data_criacao DESC`,
       [userId, userId, userId]
@@ -46,7 +47,8 @@ router.post('/', authMiddleware, async (req, res) => {
     const { nome } = req.body;
     if (!nome) return res.status(400).json({ error: 'Nome da pasta é obrigatório' });
     
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
     const userLogin = req.user.usuario || req.user.email?.split('@')[0] || `user_${userId}`;
     
     // Sanitizar nome da pasta automaticamente
@@ -58,8 +60,11 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // Buscar servidor do usuário ou melhor servidor disponível
     const [userServerRows] = await db.execute(
-      'SELECT codigo_servidor FROM streamings WHERE codigo_cliente = ? LIMIT 1',
-      [userId]
+      `SELECT codigo_servidor FROM streamings 
+       WHERE (codigo_cliente = ? OR codigo_cliente IN (
+         SELECT codigo FROM streamings WHERE codigo_cliente = ?
+       )) LIMIT 1`,
+      [userId, userId]
     );
 
     let serverId = userServerRows.length > 0 ? userServerRows[0].codigo_servidor : null;

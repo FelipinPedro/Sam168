@@ -502,7 +502,8 @@ router.delete('/remove-live/:id', authMiddleware, async (req, res) => {
 // GET /api/streaming/status - Status geral das transmissões
 router.get('/status', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
     const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${userId}`);
 
     // Verificar se response já foi enviado
@@ -515,8 +516,14 @@ router.get('/status', authMiddleware, async (req, res) => {
     };
     // Verificar transmissões de playlist ativas
     const [activeRows] = await db.execute(
-      'SELECT t.*, p.nome as playlist_nome FROM transmissoes t LEFT JOIN playlists p ON t.codigo_playlist = p.id WHERE t.codigo_stm = ? AND t.status = "ativa" ORDER BY t.data_inicio DESC LIMIT 1',
-      [userId]
+      `SELECT t.*, p.nome as playlist_nome 
+       FROM transmissoes t 
+       LEFT JOIN playlists p ON t.codigo_playlist = p.id 
+       WHERE (t.codigo_stm = ? OR t.codigo_stm IN (
+         SELECT codigo FROM streamings WHERE codigo_cliente = ?
+       )) AND t.status = "ativa" 
+       ORDER BY t.data_inicio DESC LIMIT 1`,
+      [userId, userId]
     );
 
     if (activeRows.length > 0) {
@@ -550,8 +557,12 @@ router.get('/status', authMiddleware, async (req, res) => {
     } else {
       // Verificar transmissões OBS (lives)
       const [obsRows] = await db.execute(
-        'SELECT * FROM lives WHERE codigo_stm = ? AND status = "1" ORDER BY data_inicio DESC LIMIT 1',
-        [userId]
+        `SELECT * FROM lives 
+         WHERE (codigo_stm = ? OR codigo_stm IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         )) AND status = "1" 
+         ORDER BY data_inicio DESC LIMIT 1`,
+        [userId, userId]
       );
 
       if (obsRows.length > 0) {
@@ -649,7 +660,8 @@ router.post('/start', authMiddleware, async (req, res) => {
       loop_playlist = true
     } = req.body;
 
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
     const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${userId}`);
 
     if (!titulo || !playlist_id) {
@@ -661,8 +673,11 @@ router.post('/start', authMiddleware, async (req, res) => {
 
     // Verificar se playlist existe e tem vídeos
     const [playlistRows] = await db.execute(
-      'SELECT id, nome, total_videos FROM playlists WHERE id = ? AND codigo_stm = ?',
-      [playlist_id, userId]
+      `SELECT id, nome, total_videos FROM playlists 
+       WHERE id = ? AND (codigo_stm = ? OR codigo_stm IN (
+         SELECT codigo FROM streamings WHERE codigo_cliente = ?
+       ))`,
+      [playlist_id, userId, userId]
     );
 
     if (playlistRows.length === 0) {
@@ -682,8 +697,11 @@ router.post('/start', authMiddleware, async (req, res) => {
 
     // Verificar se já há transmissão ativa
     const [activeTransmission] = await db.execute(
-      'SELECT codigo FROM transmissoes WHERE codigo_stm = ? AND status = "ativa"',
-      [userId]
+      `SELECT codigo FROM transmissoes 
+       WHERE (codigo_stm = ? OR codigo_stm IN (
+         SELECT codigo FROM streamings WHERE codigo_cliente = ?
+       )) AND status = "ativa"`,
+      [userId, userId]
     );
 
     if (activeTransmission.length > 0) {
@@ -766,7 +784,8 @@ router.post('/start', authMiddleware, async (req, res) => {
 router.post('/stop', authMiddleware, async (req, res) => {
   try {
     const { transmission_id, stream_type } = req.body;
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
     const userLogin = req.user.usuario || (req.user.email ? req.user.email.split('@')[0] : `user_${userId}`);
 
     // Verificar se response já foi enviado
@@ -780,8 +799,11 @@ router.post('/stop', authMiddleware, async (req, res) => {
     if (stream_type === 'playlist' || !stream_type) {
       // Parar transmissão de playlist
       const [transmissionRows] = await db.execute(
-        'SELECT codigo FROM transmissoes WHERE codigo_stm = ? AND status = "ativa"',
-        [userId]
+        `SELECT codigo FROM transmissoes 
+         WHERE (codigo_stm = ? OR codigo_stm IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         )) AND status = "ativa"`,
+        [userId, userId]
       );
 
       if (transmissionRows.length > 0) {
@@ -809,8 +831,11 @@ router.post('/stop', authMiddleware, async (req, res) => {
     } else if (stream_type === 'obs') {
       // Parar transmissão OBS
       const [obsRows] = await db.execute(
-        'SELECT codigo FROM lives WHERE codigo_stm = ? AND status = "1"',
-        [userId]
+        `SELECT codigo FROM lives 
+         WHERE (codigo_stm = ? OR codigo_stm IN (
+           SELECT codigo FROM streamings WHERE codigo_cliente = ?
+         )) AND status = "1"`,
+        [userId, userId]
       );
 
       if (obsRows.length > 0) {
@@ -895,14 +920,20 @@ async function cleanupInactiveTransmissions(userId) {
   try {
     // Finalizar transmissões de playlist órfãs
     const [playlistResult] = await db.execute(
-      'UPDATE transmissoes SET status = "finalizada", data_fim = NOW() WHERE codigo_stm = ? AND status = "ativa"',
-      [userId]
+      `UPDATE transmissoes SET status = "finalizada", data_fim = NOW() 
+       WHERE (codigo_stm = ? OR codigo_stm IN (
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
+       )) AND status = "ativa"`,
+      [userId, userId]
     );
 
     // Finalizar lives órfãs
     const [livesResult] = await db.execute(
-      'UPDATE lives SET status = "0", data_fim = NOW() WHERE codigo_stm = ? AND status = "1"',
-      [userId]
+      `UPDATE lives SET status = "0", data_fim = NOW() 
+       WHERE (codigo_stm = ? OR codigo_stm IN (
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
+       )) AND status = "1"`,
+      [userId, userId]
     );
 
     const totalCleaned = (playlistResult.affectedRows || 0) + (livesResult.affectedRows || 0);

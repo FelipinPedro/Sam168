@@ -18,7 +18,7 @@ router.post('/login', async (req, res) => {
 
     // Buscar primeiro em revendas
     let [rows] = await db.execute(
-      'SELECT codigo, nome, email, usuario, senha, streamings, espectadores, bitrate, espaco, status, "revenda" as tipo FROM revendas WHERE (email = ? OR usuario = ?) AND status = 1',
+      'SELECT codigo, nome, email, usuario, senha, streamings, espectadores, bitrate, espaco, status, "revenda" as tipo, codigo as codigo_cliente FROM revendas WHERE (email = ? OR usuario = ?) AND status = 1',
       [loginInput, loginInput]
     );
 
@@ -78,7 +78,7 @@ router.post('/login', async (req, res) => {
     // Gerar token JWT
     const token = jwt.sign(
       { 
-        userId: user.codigo, 
+        userId: user.codigo_cliente || user.codigo, 
         email: user.email,
         usuario: user.usuario,
         tipo: user.tipo,
@@ -93,7 +93,7 @@ router.post('/login', async (req, res) => {
       success: true,
       token,
       user: {
-        id: user.codigo,
+        id: user.codigo_cliente || user.codigo,
         nome: user.nome,
         email: user.email,
         usuario: user.usuario,
@@ -142,7 +142,7 @@ router.get('/me', async (req, res) => {
     // Buscar baseado no tipo de usuário
     if (decoded.tipo === 'revenda') {
       [rows] = await db.execute(
-        'SELECT codigo, nome, email, usuario, streamings, espectadores, bitrate, espaco, status, "revenda" as tipo FROM revendas WHERE codigo = ?',
+        'SELECT codigo, nome, email, usuario, streamings, espectadores, bitrate, espaco, status, "revenda" as tipo, codigo as codigo_cliente FROM revendas WHERE codigo = ?',
         [decoded.userId]
       );
     } else if (decoded.tipo === 'streaming') {

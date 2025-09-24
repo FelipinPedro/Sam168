@@ -157,7 +157,8 @@ const isCompatibleFormat = (formatName, extension) => {
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Para revendas, usar o ID efetivo do usuário
+    const userId = req.user.effective_user_id || req.user.id;
     const userLogin = req.user.email ? req.user.email.split('@')[0] : `user_${userId}`;
     const folderId = req.query.folder_id;
     
@@ -167,8 +168,12 @@ router.get('/', authMiddleware, async (req, res) => {
 
     // Buscar dados da pasta na nova tabela folders
     const [folderRows] = await db.execute(
-      'SELECT nome_sanitizado, servidor_id, espaco_usado FROM folders WHERE id = ? AND user_id = ?',
-      [folderId, userId]
+      `SELECT nome_sanitizado, servidor_id, espaco_usado 
+       FROM folders 
+       WHERE id = ? AND (user_id = ? OR user_id IN (
+         SELECT codigo FROM streamings WHERE codigo_cliente = ?
+       ))`,
+      [folderId, userId, userId]
     );
     
     if (folderRows.length === 0) {
@@ -209,7 +214,7 @@ router.get('/', authMiddleware, async (req, res) => {
         pasta
        FROM videos 
        WHERE (codigo_cliente = ? OR codigo_cliente IN (
-         SELECT codigo_cliente FROM streamings WHERE codigo = ?
+         SELECT codigo_cliente FROM streamings WHERE codigo_cliente = ?
        )) AND pasta = ? AND nome IS NOT NULL AND nome != ''
        ORDER BY id DESC`,
       [userId, userId, folderId]
